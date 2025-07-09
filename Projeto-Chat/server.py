@@ -19,62 +19,65 @@ class Servidor:
         self.clients = {}
 
     def handle_client(self, client_socket):
-        # logo no inicio o cliente precisará se identificar
-        # informando um nome que ainda não exista no dicionário self.clients
-        # o nome será a chave do dicionário e o valor será o socket do cliente
+    # Autenticação / Registro
         while True:
             client_name = client_socket.recv(1024).decode('utf-8')
 
             if client_name in self.clients:
-                client_socket.send("Nome já existe. Tente outro.".encode('utf-8'))
+                client_socket.send("Nome já está em uso (conectado). Tente outro.".encode('utf-8'))
                 continue
 
-            if not self.db.cadastrar_usuario(client_name):
-                client_socket.send("Nome já existe. Tente outro.".encode('utf-8'))
-                continue
-
+            # Permite reusar nome já cadastrado no banco
+            self.db.cadastrar_usuario(client_name)  # Ignora erro se já existir
             self.clients[client_name] = client_socket
+
             print(f"[*] Cliente {client_name} conectado")
             client_socket.send("Nome aceito".encode('utf-8'))
 
-            # envia a lista de contatos
+            # Envia lista de contatos
             contatos = self.db.listar_usuarios()
             client_socket.send(f"Contatos: {', '.join(contatos)}".encode('utf-8'))
-            break
-        
-        # envia mensagens offline
-        mensagens = self.db.buscar_mensagens_offline(client_name)
-        for remetente, conteudo in mensagens:
-            client_socket.send(f"[Offline de {remetente}] {conteudo}".encode('utf-8'))
-        self.db.apagar_mensagens_offline(client_name)
 
-        # vamos observar as mensagens enviadas pelo cliente
-        # enquanto o cliente estiver conectado, ele poderá enviar mensagens
-        # para outros clientes
+            # Envia mensagens offline
+            mensagens = self.db.buscar_mensagens_offline(client_name)
+            for remetente, conteudo in mensagens:
+                client_socket.send(f"[Offline de {remetente}] {conteudo}".encode('utf-8'))
+            self.db.apagar_mensagens_offline(client_name)
+
+            break
+
+        # Loop de mensagens
         while True:
             try:
                 message = client_socket.recv(1024).decode('utf-8')
-                # se o cliente desconectar, o servidor irá remover o cliente do dicionário
+                if message == "/sair":
+                    print(f"[*] Cliente {client_name} encerrou a conexão.")
+                    del self.clients[client_name]
+                    client_socket.close()
+                    break
+
                 if not message:
                     print(f"[*] Cliente {client_name} desconectado")
                     del self.clients[client_name]
                     client_socket.close()
                     break
-                
-                # a mensagem será no formato "destinatário:mensagem"
+
+                # Formato: "destinatario:mensagem"
                 recipient_name, msg = message.split(':', 1)
+
                 if recipient_name in self.clients:
                     self.clients[recipient_name].send(f"{client_name}: {msg}".encode('utf-8'))
                 else:
                     self.db.salvar_mensagem_offline(client_name, recipient_name, msg)
-                    client_socket.send(f"{recipient_name} está offline. Mensagem salva.".encode('utf-8'))
+                    client_socket.send(f"\n[Servidor] {recipient_name} está offline. Mensagem salva.\n".encode('utf-8'))
 
             except Exception as e:
                 print(f"Erro: {e}")
-                print(f"[*] Cliente {client_name} desconectado")
-                del self.clients[client_name]
+                if client_name in self.clients:
+                    del self.clients[client_name]
                 client_socket.close()
                 break
+
 
     def start(self):
         # cria o socket do servidor

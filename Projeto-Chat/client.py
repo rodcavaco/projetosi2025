@@ -49,13 +49,19 @@ class Cliente:
         # para outros clientes, na thread principal
         while True:
             try:
-                recipient_name = input("Informe o nome do destinatário: ")
+                recipient_name = input("Informe o nome do destinatário (ou 'sair' para encerrar): ")
+                if recipient_name.lower() == 'sair':
+                    self.client_socket.send(b'/sair')
+                    self.client_socket.close()
+                    print("Desconectado do servidor.")
+                    break
+
                 message = input("Informe a mensagem: ")
-                # a mensagem será no formato "destinatário:mensagem"
                 self.client_socket.send(f"{recipient_name}:{message}".encode('utf-8'))
             except Exception as e:
                 print(f"Erro: {e}")
                 break
+
     
     def receive_messages(self):
         # enquanto o cliente estiver conectado, ele poderá receber mensagens
@@ -65,7 +71,7 @@ class Cliente:
                 message = self.client_socket.recv(1024).decode('utf-8')
                 if not message:
                     break
-                print(f"\n[**]{message}")
+                print(f"\n[Servidor] {message}\n")
             except Exception as e:
                 print(f"Erro: {e}")
                 break
