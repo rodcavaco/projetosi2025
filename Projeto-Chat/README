@@ -1,0 +1,10 @@
+Pré-requisitos para rodar o projeto:
+
+1° Ter o python instalado
+2° Ter baixado o mysql
+
+
+Comandos necessários para executar o projeto
+
+- pip install mysql-connector-python
+- pip install cryptography
